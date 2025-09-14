@@ -36,6 +36,7 @@ cosine_sim = cosine_similarity(tfidf_matrix, tfidf_matrix)
 indices = pd.Series(movies_tags.index, index=movies_tags['title']).drop_duplicates()
 
 def get_recommendations(title, cosine_sim=cosine_sim):
+    """Rekomendasi berdasarkan film"""
     if title not in indices:
         return pd.DataFrame()
     idx = indices[title]
@@ -45,6 +46,12 @@ def get_recommendations(title, cosine_sim=cosine_sim):
     movie_indices = [i[0] for i in sim_scores]
     return movies_tags.iloc[movie_indices][['title', 'avg_rating', 'num_ratings']]
 
+def get_top_movies_by_genre(genre, top_n=10):
+    """10 film terbaik berdasarkan genre (dengan avg_rating & num_ratings)"""
+    filtered = movies_tags[movies_tags['genres'].str.contains(genre, case=False, na=False)]
+    top_movies = filtered.sort_values(by=['avg_rating', 'num_ratings'], ascending=[False, False]).head(top_n)
+    return top_movies[['title', 'avg_rating', 'num_ratings']]
+
 # ---------------------
 # Streamlit UI
 # ---------------------
@@ -53,19 +60,33 @@ st.set_page_config(page_title="Movie Recommendation System", layout="centered", 
 st.title("🎬 Movie Recommendation System")
 st.write("Rekomendasi film berdasarkan **MovieLens Dataset (Tags + Ratings)**")
 
-# Dropdown untuk memilih film
-movie_list = movies_tags['title'].values
-selected_movie = st.selectbox("Pilih film:", movie_list)
+# Pilih mode
+mode = st.radio("Pilih jenis rekomendasi:", ["🔍 Berdasarkan Film", "⭐ Top 10 Film per Genre"])
 
-# Tombol untuk rekomendasi
-if st.button("Dapatkan Rekomendasi"):
-    recommendations = get_recommendations(selected_movie)
-    if not recommendations.empty:
-        st.subheader("🎯 Rekomendasi Film:")
-        for i, row in recommendations.iterrows():
-            st.write(f"**{row['title']}**")
-            st.write(f"⭐ Rata-rata rating: {row['avg_rating']:.2f}")
-            st.write(f"👥 Jumlah rating: {int(row['num_ratings'])}")
-            st.markdown("---")
-    else:
-        st.warning("Maaf, tidak ditemukan rekomendasi untuk film ini.")
+if mode == "🔍 Berdasarkan Film":
+    # Dropdown untuk memilih film
+    movie_list = movies_tags['title'].values
+    selected_movie = st.selectbox("Pilih film:", movie_list)
+
+    # Tombol untuk rekomendasi
+    if st.button("Dapatkan Rekomendasi"):
+        recommendations = get_recommendations(selected_movie)
+        if not recommendations.empty:
+            st.subheader("🎯 Rekomendasi Film:")
+            st.dataframe(recommendations.reset_index(drop=True))
+        else:
+            st.warning("Maaf, tidak ditemukan rekomendasi untuk film ini.")
+
+elif mode == "⭐ Top 10 Film per Genre":
+    # Dropdown genre unik
+    all_genres = sorted(set([g for sublist in movies['genres'].str.split('|') for g in sublist]))
+    selected_genre = st.selectbox("Pilih genre:", all_genres)
+
+    # Tombol untuk tampilkan top 10
+    if st.button("Tampilkan Top 10"):
+        top_movies = get_top_movies_by_genre(selected_genre, top_n=10)
+        if not top_movies.empty:
+            st.subheader(f"🏆 Top 10 Film Terbaik dalam Genre **{selected_genre}**")
+            st.dataframe(top_movies.reset_index(drop=True))
+        else:
+            st.warning("Tidak ada film dengan genre ini.")
