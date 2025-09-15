@@ -43,8 +43,24 @@ def get_recommendations(title, cosine_sim=cosine_sim):
 
 def get_top_movies_by_genre(genre, top_n=10):
     filtered = movies[movies['genres'].str.contains(genre, case=False, na=False)]
-    top_movies = filtered.sort_values(by=['avg_rating', 'num_ratings'], ascending=[False, False]).head(top_n)
-    return top_movies[['title', 'avg_rating', 'num_ratings', 'tmdbId']]
+
+    # parameter untuk Weighted Rating
+    C = movies['avg_rating'].mean()   # rata-rata rating semua film
+    m = movies['num_ratings'].quantile(0.80)  # ambil kuantil 80% sebagai syarat minimum votes
+
+    # hanya film dengan jumlah votes >= m
+    qualified = filtered[filtered['num_ratings'] >= m].copy()
+
+    # hitung weighted rating (IMDB formula)
+    qualified['weighted_rating'] = (
+        (qualified['num_ratings'] / (qualified['num_ratings'] + m)) * qualified['avg_rating'] +
+        (m / (qualified['num_ratings'] + m)) * C
+    )
+
+    # urutkan berdasarkan weighted rating
+    top_movies = qualified.sort_values(by='weighted_rating', ascending=False).head(top_n)
+
+    return top_movies[['title', 'avg_rating', 'num_ratings', 'weighted_rating', 'tmdbId']]
 
 # ---------------------
 # Ambil poster dari TMDb
